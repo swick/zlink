@@ -16,17 +16,17 @@ pub trait Listener: core::fmt::Debug {
 /// This is useful for services that get spawned by systemd and handed over a socket.
 #[derive(Debug)]
 pub struct ReadyListener<Sock: Socket> {
-    socket: Option<Sock>,
+    connection: Option<Connection<Sock>>,
 }
 
 impl<Sock> ReadyListener<Sock>
 where
     Sock: Socket,
 {
-    /// Create a new listener from a socket.
-    pub fn new(socket: Sock) -> Self {
+    /// Create a new listener from a connection.
+    pub fn new(connection: impl Into<Connection<Sock>>) -> Self {
         Self {
-            socket: Some(socket),
+            connection: Some(connection.into()),
         }
     }
 }
@@ -41,8 +41,8 @@ where
     ///
     /// After the first call, in simply never returns on subsequent calls.
     async fn accept(&mut self) -> Result<Connection<Self::Socket>> {
-        match self.socket.take() {
-            Some(socket) => Ok(Connection::new(socket)),
+        match self.connection.take() {
+            Some(connection) => Ok(connection),
             None => core::future::pending().await,
         }
     }

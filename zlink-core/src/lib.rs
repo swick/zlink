@@ -30,6 +30,7 @@ pub use error::{Error, Result};
 mod server;
 #[cfg(feature = "server")]
 pub use server::{
+    multi_service::MultiService,
     listener::{Listener, ReadyListener},
     service::{self, Service},
     Server,

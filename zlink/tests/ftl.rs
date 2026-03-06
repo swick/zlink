@@ -10,10 +10,7 @@ use futures_util::{pin_mut, stream::StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::{select, time::sleep};
 use zlink::{
-    introspect::{self, CustomType, ReplyError as _, Type},
-    notified::{self, traits::State as _},
-    unix::{bind, connect},
-    varlink_service::{self, Proxy as _},
+    MultiService, Connection, introspect::{self, CustomType, ReplyError as _, Type}, notified::{self, traits::State as _}, unix::{bind, connect}, varlink_service::{self, Proxy as _}
 };
 
 #[test_log::test(tokio::test(flavor = "multi_thread"))]
@@ -44,14 +41,34 @@ async fn ftl() -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup the server and run it in a separate task.
     let listener = bind(SOCKET_PATH).unwrap();
-    let service = Ftl::new(conditions[0]);
-    let server = zlink::Server::new(listener, service);
+    let mut multi_service = FtlMultiService::new(conditions[0]);
     select! {
-        res = server.run() => res?,
+        res = multi_service.run(listener) => res?,
         res = run_client(&conditions) => res?,
     }
 
     Ok(())
+}
+
+struct FtlMultiService {
+    condition: DriveCondition,
+}
+
+impl FtlMultiService {
+    fn new(condition: DriveCondition) -> Self {
+        Self {
+            condition,
+        }
+    }
+}
+
+impl MultiService<Ftl, zlink_tokio::unix::Listener> for FtlMultiService
+{
+    async fn accept(&self, connection: &mut Connection<zlink_tokio::unix::Stream>) -> Option<Ftl> {
+        let client_pid = connection.peer_credentials().await.ok()?.process_id();
+        println!("Connection from {client_pid}");
+        Some(Ftl::new(self.condition))
+    }
 }
 
 async fn run_client(conditions: &[DriveCondition]) -> Result<(), Box<dyn std::error::Error>> {
